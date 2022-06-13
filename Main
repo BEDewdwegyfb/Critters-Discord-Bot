@@ -1,0 +1,464 @@
+import discord
+from discord.ext import commands
+from discord_components import DiscordComponents, ComponentsBot, Button, ButtonStyle, Select, SelectOption # for select menus
+import os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd # for discord text spacing
+import requests
+import json
+import math
+import never_sleep
+
+bot = ComponentsBot(command_prefix = "!")
+my_secret = os.environ['Token'] # Your token
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}!")
+@bot.command()
+#Server information, using multipaper-map.critterz.xyz
+async def server(ctx):
+  r = requests.get('https://multipaper-map.critterz.xyz/tiles/players.json')
+  Amount_players = r.json()
+  Amount_players = Amount_players['players']
+  Amount_players = len(Amount_players)
+  embedVar = discord.Embed(title=f"There are currenly {Amount_players} players online.", color=0x00ff00)
+  await ctx.send(embed=embedVar)
+#Calculations are totaly wrong and need to use the time module.
+async def profile_is_not_working(ctx, arg):
+  url = "https://hasura-dxhfx4osrq-ue.a.run.app/v1/graphql"
+  Name_request = "https://api.ashcon.app/mojang/v2/user/" + arg
+  Name_UUID = requests.get(Name_request)
+  Name_UUID.raise_for_status()
+  Name_UUID_json = Name_UUID.json()
+  Name_UUID_json = Name_UUID_json['uuid']
+  urlVar = {"operationName":"AccountByUUID","variables":{"uuid": Name_UUID_json},"query":"query AccountByUUID($uuid: uuid!) { account(where: {   minecraft_player_uuid: {_eq: $uuid   }}) {address }}"}
+  Wallet = requests.post(url, json=urlVar)
+  Wallet_json = Wallet.json()
+  Wallet_slicing = Wallet_json['data']['account'][0]
+  Wallet = Wallet_slicing['address']
+  print(Wallet)
+  profile_playtime = []
+  url = "https://hasura-dxhfx4osrq-ue.a.run.app/v1/graphql"
+  data = { "operationName":"Query_root", "variables":{ "where": { "minecraft_player_uuid": { "_eq":Name_UUID_json} } }, "query":"query Query_root($where: player_log_bool_exp) { player_log(where: $where) { login_timestamp logout_timestamp } }"}
+  Playtime_all = requests.post(url, json=data)
+  Playtime_all = Playtime_all.json()
+  Playtime_all = json.dumps(Playtime_all, indent=2)
+  list = json.loads(Playtime_all)
+  for all in list['data']['player_log']:
+    first_call = all['login_timestamp']
+    second_call = all['logout_timestamp']
+    second_call = second_call.replace("-","").replace("T","").replace(":","").replace(".","")[8:]
+    second_call = second_call[:6]
+    first_call = first_call.replace("-","").replace("T","").replace(":","").replace(".","")[8:]
+    first_call = first_call[:6]
+    total = (int(second_call) - int(first_call))/100
+    if total > 0:
+      total = profile_playtime.append(total)
+  await ctx.send(sum(round(profile_playtime)))
+  print(profile_playtime)## Experimental profile command, not correct api calculations.
+@bot.command(aliases=["bok","blok","blocks","bloks","$block"])
+#Working $BLOCK calculator including currunt block price, using dropdown menus. Using the discord componets repository
+async def block(ctx):
+    embedVar = discord.Embed(title="Critterz $BLOCK calculator, based on SpaceFrog's formula.", description="Use this to calculate your $BLOCK earnings", color=0x00ff00, url="https://docs.google.com/spreadsheets/d/1F4CFj_jRRVnnwL-y0E6sINEPkUZESd1nkhBR29AHSkI/edit#gid=0")
+    embedError = discord.Embed(description="Dropdown menu's don't work on outdated versions of discord, make sure you are not on the latest version or use: !blockerror [Critterz you own] [Critterz I rent] [Hours I play]", color=0xFF0000)
+    embedVar.add_field(name="How To Use", value="Click on the dropdown menu's and select how many critterz you own, rent and how much you play.", inline=True)
+    embedVar.set_footer(text="This is based on SpaceFrog's google sheet, for more info click the hyperlink above (in the title)")
+    await ctx.send(embed=embedVar)
+    await ctx.send(          embed=embedError,
+        components = [
+              Select(
+                  placeholder = "Select the amount of you own Critterz",
+                  options = [
+                      SelectOption(label = "None owned", value = "0"),
+                      SelectOption(label = "1 Critterz", value = "1"),
+                      SelectOption(label = "2 Critterz", value = "2"),
+                      SelectOption(label = "3 Critterz", value = "3"),
+                      SelectOption(label = "4 Critterz", value = "4"),
+                      SelectOption(label = "5 Critterz", value = "5"),
+                      SelectOption(label = "6 Critterz", value = "6"),
+                      SelectOption(label = "7 Critterz", value = "7"),
+                      SelectOption(label = "8 Critterz", value = "8"),
+                      SelectOption(label = "9 Critterz", value = "9"),
+                      SelectOption(label = "10 Critterz", value = "10"),
+                      SelectOption(label = "11 Critterz", value = "11"),
+                      SelectOption(label = "12 Critterz", value = "12"),
+                  ]
+              )
+          ]
+      )
+    while True:
+      List = []
+      interaction = await bot.wait_for("select_option")
+      List.append(interaction.values[0])
+      await interaction.send(        "Select the amount of Critterz rented!",
+          components = [
+              Select(
+                  placeholder = "Select 1-12",
+                  options = [
+                      SelectOption(label = "None/0 rented", value = "0"),
+                      SelectOption(label = "1 Critterz rented", value = "1"),
+                      SelectOption(label = "2 Critterz rented", value = "2"),
+                      SelectOption(label = "3 Critterz rented", value = "3"),
+                      SelectOption(label = "4 Critterz rented", value = "4"),
+                      SelectOption(label = "5 Critterz rented", value = "5"),
+                      SelectOption(label = "6 Critterz rented", value = "6"),
+                      SelectOption(label = "7 Critterz rented", value = "7"),
+                      SelectOption(label = "8 Critterz rented", value = "8"),
+                      SelectOption(label = "9 Critterz rented", value = "9"),
+                      SelectOption(label = "10 Critterz rented", value = "10"),
+                      SelectOption(label = "11 Critterz rented", value = "11"),
+                      SelectOption(label = "12 Critterz rented", value = "12"),
+                  ]
+              )
+          ]
+      )
+      interaction = await bot.wait_for("select_option")
+      List.append(interaction.values[0])
+      await interaction.send(        "Finaly select hours of playtime each day",
+          components = [
+              Select(
+                  placeholder = "Select how many hours you play each day (1-24)",
+                  options = [
+                      SelectOption(label = "None", value = "0"),
+                      SelectOption(label = "1 hour of playtime", value = "1"),
+                      SelectOption(label = "2 hours of playtime", value = "2"),
+                      SelectOption(label = "3 hours of playtime", value = "3"),
+                      SelectOption(label = "4 hours of playtime", value = "4"),
+                      SelectOption(label = "5 hours of playtime", value = "5"),
+                      SelectOption(label = "6 hours of playtime", value = "6"),
+                      SelectOption(label = "7 hours of playtime", value = "7"),
+                      SelectOption(label = "8 hours of playtime", value = "8"),
+                      SelectOption(label = "9 hours of playtime", value = "9"),
+                      SelectOption(label = "10 hours of playtime", value = "10"),
+                      SelectOption(label = "11 hours of playtime", value = "11"),
+                      SelectOption(label = "12 hours of playtime", value = "12"),
+                      SelectOption(label = "13 hours of playtime", value = "13"),
+                      SelectOption(label = "14 hours of playtime", value = "14"),
+                      SelectOption(label = "15 hours of playtime", value = "15"),
+                      SelectOption(label = "16 hours of playtime", value = "16"),
+                      SelectOption(label = "17 hours of playtime", value = "17"),
+                      SelectOption(label = "18 hours of playtime", value = "18"),
+                      SelectOption(label = "19 hours of playtime", value = "19"),
+                      SelectOption(label = "20 hours of playtime", value = "20"),
+                      SelectOption(label = "21 hours of playtime", value = "21"),
+                      SelectOption(label = "22 hours of playtime", value = "22"),
+                      SelectOption(label = "23 hours of playtime", value = "23"),
+                      SelectOption(label = "24 hours of playtime", value = "24"),
+                  ]
+              )
+          ]
+      )
+      interaction = await bot.wait_for("select_option")
+      List.append(interaction.values[0])
+      print(List)
+      arg_not_int = List[0]
+      arg2_not_int = List[1]
+      arg3_not_int = List[2]
+      arg = int(List[0])
+      arg2 = int(List[1])
+      arg3 = int(List[2])
+      
+      calc = (24*arg)+(100*math.sqrt((arg+arg2)*arg3))-(arg2/(arg+arg2))*(100*math.sqrt((arg+arg2)*arg3))*(0.4)
+      calc = calc / 2
+      embedVar1 = discord.Embed(title="Critterz $BLOCK calculator, based on SpaceFrog's Math.", description="This should be your earnings for: \n" + arg_not_int + " Critterz Owned\n" + arg2_not_int + " Critterz Rented\n" + arg3_not_int + " Hours of playtime", color=0x00ff00, url="https://docs.google.com/spreadsheets/d/1F4CFj_jRRVnnwL-y0E6sINEPkUZESd1nkhBR29AHSkI/edit#gid=0")
+      r = requests.get('https://api.dexscreener.io/latest/dex/pairs/ethereum/0xe93527d1f8c586353b13826c501fa5a69bce2b0e')
+      Price_block = r.json()
+      Price_block = Price_block['pair']['priceUsd']
+      Price_block_int = float(Price_block)
+      Block_per_day = Price_block_int * calc
+      Block_per_week = (Price_block_int * calc) * 7
+      Block_per_month = (Price_block_int * calc) * 30.4
+      Block_per_century = (Price_block_int * calc) * 36524.2
+      Round_block_per_day = round(Block_per_day,2)
+      embedVar1.add_field(name="Earnings in $block", value=calc, inline=False)
+      embedVar1.add_field(name="Profit per day with current $block price", value=str(round(Block_per_day,2)) + "$",inline=False)
+      embedVar1.add_field(name="Profit per week with current $block price", value=str(round(Block_per_week,2)) + "$",inline=True)
+      embedVar1.add_field(name="Profit per month with current $block price", value=str(round(Block_per_month,2)) + "$",inline=True)
+      embedVar1.add_field(name="Profit per century with current $block price", value=str(round(Block_per_century,0)) + "$",inline=True)
+      embedVar.set_footer(text="This is based on SpaceFrog's google sheet, for more info click the hyperlink above (in the title)")
+      await interaction.send(embed = embedVar1)
+
+def is_in_guild(guild_id):
+    async def predicate(ctx):
+        return ctx.guild and ctx.guild.id == guild_id
+    return commands.check(predicate)     #Critterz 
+@bot.command()
+#help page for all available commands
+async def bothelp(ctx):
+  embedVar = discord.Embed(title="Critterz Bot Help Menu", description="Here you can find all available commands", color=0x00ff00)
+  embedVar.add_field(name="Marketplace Tracker", value="Use  **!marketplace [username/wallet address]** to track someones marketplace transactions", inline=False)
+  embedVar.add_field(name="Block Calculator", value="You can use this to calculate how much block you can earn. Use **!block** for more info. Credits to SpaceFrog for the formula")
+  embedVar.add_field(name="CritterzC Server Only", value="Use !playtimeall to track all the groupmembers. *CritterzC Server Only*", inline=False)
+  embedVar.add_field(name="Server info", value="Use **!server** for server info, more info will be added later.", inline=False)
+  await ctx.send(embed=embedVar)
+#Command only for the CritterzC discord server 
+@bot.command(aliases=["playtime"]) 
+@commands.has_permissions(ban_members=True)
+@is_in_guild(928300116929024131) #checking if command is send in the correct server with the correct permissions. 
+#CritterzC server only
+#using the automatic updated google sheets, for playtime for all the guild members.
+async def playtimeall(ctx):
+  scope = ["https://spreadsheets.google.com/feeds",'https://www.googleapis.com/auth/spreadsheets',"https://www.googleapis.com/auth/drive.file","https://www.googleapis.com/auth/drive"]
+  creds = ServiceAccountCredentials.from_json_keyfile_name("creds.json", scope)
+  clients = gspread.authorize(creds)
+  sheet = clients.open("Critterz").sheet1
+  Link = 'https://www.critterztracker.com/api/profile/'
+  gc = gspread.service_account("creds.json")
+  sh = gc.open("Critterz")
+  Final_day = int(sheet.cell(1,2).value)
+  Names = sheet.col_values(1)
+  Names.pop(0)
+  Yesterday = sheet.col_values(Final_day - 1)
+  Yesterday.pop(0)
+  Today = sheet.col_values(Final_day)
+  Today.pop(0)
+  dName = pd.DataFrame ({'   ': Names})
+  dYesterday = pd.DataFrame ({' ': Yesterday})
+  dToday = pd.DataFrame ({'  ': Today})
+  Last_Reload = sheet.cell(1,Final_day).value
+  r = requests.get('https://api.dexscreener.io/latest/dex/pairs/ethereum/0xe93527d1f8c586353b13826c501fa5a69bce2b0e')
+  Price_block = r.json()
+  Price_block = Price_block['pair']['priceUsd']
+
+  embedVar = discord.Embed(title="CritterzC Playtime tracker", description="Daily Playtime", color=0x00ff00)
+  embedVar.add_field(name="Names", value='```' + dName.to_string(index=False) + '```', inline=True)
+  embedVar.add_field(name="Yesterday", value='```' + dYesterday.to_string(index=False) + '```', inline=True)
+  embedVar.add_field(name="Today", value='```' + dToday.to_string(index=False) + '```', inline=True)
+  embedVar.add_field(name="Last reload", value=Last_Reload, inline=True)
+  embedVar.add_field(name="Price $BLOCK", value=Price_block, inline=True)
+  embedVar.set_footer(text="This data updates every 40 minutes, manual updates will be added later")
+  await ctx.send(embed=embedVar)
+#marketplace transactions tracker, making use of buttons, max limit of 3 pages, needs a  loop for unlimited pages.
+#checking if argument is a wallet, and checking if the username is correct (if the mc accepts the UUID). If the uuid or wallet is correct it will return the transactions inluding some total numbers (total profit, total price paid).
+#marketplace tracker, currently there is no loop, so there are only a limited amount of pages available. 
+@bot.command(aliases=["mp","market","markt","marcket","trade","narket"])
+async def marketplace(ctx, arg):
+  list2 = []
+  list3 = []
+  Total_sold = []
+  Total_bought = []
+  nosale = []
+  try:
+    if len(arg) > 16:
+      Wallet = arg
+    else:
+      url = "https://hasura-dxhfx4osrq-ue.a.run.app/v1/graphql"
+      Name_request = "https://api.ashcon.app/mojang/v2/user/" + arg
+      Name_UUID = requests.get(Name_request)
+      Name_UUID.raise_for_status()
+      Name_UUID_json = Name_UUID.json()
+      Name_UUID_json = Name_UUID_json['uuid']
+      urlVar = {"operationName":"AccountByUUID","variables":{"uuid": Name_UUID_json},"query":"query AccountByUUID($uuid: uuid!) { account(where: {   minecraft_player_uuid: {_eq: $uuid   }}) {address }}"}
+      Wallet = requests.post(url, json=urlVar)
+      Wallet_json = Wallet.json()
+      Wallet_slicing = Wallet_json['data']['account'][0]
+      Wallet = Wallet_slicing['address']
+    url = "https://hasura-dxhfx4osrq-ue.a.run.app/v1/graphql"
+    va = {"operationName":"In_game_block_transaction","variables":{"limit":1000,"offset":0,"where":{"_or":[{"in_game_item_listing":{"account_address":{"_eq":Wallet}}},{"to_account_address":{"_eq":Wallet}}]},"orderBy":[{"timestamp":"desc"}]},"query":"query In_game_block_transaction($where: in_game_block_transaction_bool_exp, $limit: Int, $offset: Int, $orderBy: [in_game_block_transaction_order_by!]) {\n  in_game_block_transaction(\n    where: $where\n    limit: $limit\n    offset: $offset\n    order_by: $orderBy\n  ) {\n    id\n    timestamp\n    to_account_address\n    to_minecraft_player_uuid\n    item_received\n    item_quantity\n    listing: in_game_item_listing {\n      item_name\n      item_meta\n      price\n      minecraft_player_uuid\n      account_address\n      __typename\n    }\n    __typename\n  }\n}"}
+    Sales = requests.post(url, json=va)
+    market = Sales.json()
+    market_clean = json.dumps(market, indent=2)
+    list = json.loads(market_clean)
+    HowMany = len(list['data']['in_game_block_transaction'])
+    Number_of_pages = HowMany / 20
+    Number_of_pages = math.ceil(Number_of_pages)
+    embedVar = discord.Embed(title="CritterzC Marketplace tracker",     description="Marketplace Tracker", color=0x00ff00)
+    for price in list['data']['in_game_block_transaction']:
+      if price['to_account_address'] == Wallet:
+        item_price = (price['listing']['price']/1000000000 * price['item_quantity'])
+        item = (price['listing']['item_name'])
+        list3.append("---")
+        nosale.append(item_price)
+        list2.append(item)
+        Total_bought.append(item_price)
+      else:
+        item = (price['listing']['item_name'])
+        item_price = (price['listing']['price']/1000000000 * price['item_quantity'])
+        list3.append(item_price)
+        list2.append(item)
+        nosale.append("---")
+        Total_sold.append(item_price)
+    if HowMany >= 10:
+      list4 = list2.copy()
+      list5 = list3.copy()
+      nosale_next_page = nosale.copy()
+      list4 = list4[:10]
+      list5 = list5[:10]
+      nosale_next_page= nosale_next_page[:10]
+      Sales = pd.DataFrame ({' ': list4})
+      item_price = pd.DataFrame ({'  ': list5})
+      bought_items = pd.DataFrame ({'  ': nosale_next_page})
+      embedVar.add_field(name="Sales", value=Sales.to_string(index=False), inline=True)
+      embedVar.add_field(name="Profit selling", value=item_price.to_string(index=False), inline=True)
+      embedVar.add_field(name="Price Paid", value=bought_items.to_string(index=False), inline=True)
+      embedVar.add_field(name="Total Profit", value=sum(Total_sold), inline=True)
+      embedVar.add_field(name="Price Paid", value=sum(Total_bought), inline=True)
+      await ctx.send(
+        embed=embedVar,
+        components = [
+            Button(label = "Next Page", custom_id = "button1")
+        ])
+    elif HowMany == 0:
+      embedVar1 = discord.Embed(title="No Marketplace Transactions found",description=f"ERROR! \r **{arg}  has no transactions**", color=0xFF0000)
+      embedVar.add_field(name="Total Profit", value=sum(Total_sold), inline=True)
+      embedVar.add_field(name="Price Paid", value=sum(Total_bought), inline=True)
+      await ctx.send(embed=embedVar1)
+    else:
+      Sales = pd.DataFrame ({' ': list2})
+      item_price = pd.DataFrame ({'  ': list3})
+      bought_items = pd.DataFrame ({'  ': nosale})
+      embedVar.add_field(name="Sales", value=Sales.to_string(index=False), inline=True)
+      embedVar.add_field(name="Total Profit", value=item_price.to_string(index=False), inline=True)
+      embedVar.add_field(name="Price Paid", value=bought_items.to_string(index=False), inline=True)
+      embedVar.add_field(name="Total Profit", value=sum(Total_sold), inline=True)
+      embedVar.add_field(name="Price Paid", value=sum(Total_bought), inline=True)
+      await ctx.send(embed=embedVar)
+    interaction = await bot.wait_for("button_click", check = lambda i: i.custom_id == "button1")
+    if HowMany > 21:
+      list4 = list2.copy()
+      list5 = list3.copy()
+      nosale_next_page = nosale.copy()
+      list4 = list4[10:30]
+      list5 = list5[10:30]
+      nosale_next_page = nosale_next_page[10:30]
+      Sales_page_1 = pd.DataFrame ({' ': list4})
+      item_price_page_1 = pd.DataFrame ({'  ': list5})
+      Bought_items = pd.DataFrame ({'   ': nosale_next_page})
+      embedVar = discord.Embed(title='Critter Marketplace Tracker',
+      description=f'Page 2 of {str(Number_of_pages)}',
+      color=0x00ff00)
+      embedVar.add_field(name="Sales",value=Sales_page_1.to_string(index=False), inline=True)
+      embedVar.add_field(name="Total Profit", value=item_price_page_1.to_string(index=False), inline=True)
+      embedVar.add_field(name="Price Paid", value=Bought_items.to_string(index=False), inline=True)
+      embedVar.add_field(name="Total Profit", value=sum(Total_sold), inline=True)
+      embedVar.add_field(name="Price Paid", value=sum(Total_bought), inline=True)
+      await interaction.send(
+          embed=embedVar,
+          components = [
+              Button(label = "Next Page", custom_id = "button2")
+          ])
+      if HowMany > 31:
+        interaction2 = await bot.wait_for("button_click", check = lambda i: i.custom_id == "button2")
+        list4 = list2.copy()
+        list5 = list3.copy()
+        nosale_next_page = nosale.copy()
+        list4 = list4[30:60]
+        list5 = list5[30:60]
+        nosale_next_page = nosale_next_page[30:60]
+        Sales_page_1 = pd.DataFrame ({' ': list4})
+        item_price_page_1 = pd.DataFrame ({'  ': list5})
+        Bought_items = pd.DataFrame ({'   ': nosale_next_page})
+        embedVar = discord.Embed(title='Critter Marketplace Tracker',
+        description=f'Page 3 of {str(Number_of_pages)}',
+        color=0x00ff00)
+        embedVar.add_field(name="Sales",value=Sales_page_1.to_string(index=False), inline=True)
+        embedVar.add_field(name="Total Profit", value=item_price_page_1.to_string(index=False), inline=True)
+        embedVar.add_field(name="Price Paid", value=Bought_items.to_string(index=False), inline=True)
+        embedVar.add_field(name="Total Profit", value=sum(Total_sold), inline=True)
+        embedVar.add_field(name="Price Paid", value=sum(Total_bought), inline=True)
+        await interaction2.send(embed=embedVar,
+          components = [
+              Button(label = "Next Page", custom_id = "button3")
+          ])
+      else:
+        interaction2 = await bot.wait_for("button_click", check = lambda i: i.custom_id == "button2")
+        list4 = list2.copy()
+        list5 = list3.copy()
+        nosale_next_page = nosale.copy()
+        list4 = list4[30:60]
+        list5 = list5[30:60]
+        nosale_next_page = nosale_next_page[30:60]
+        Sales_page_1 = pd.DataFrame ({' ': list4})
+        item_price_page_1 = pd.DataFrame ({'  ': list5})
+        Bought_items = pd.DataFrame ({'   ': nosale_next_page})
+        embedVar = discord.Embed(title='Critter Marketplace Tracker',
+        description=f'Page 3 of {str(Number_of_pages)}',
+        color=0x00ff00)
+        embedVar.add_field(name="Sales",value=Sales_page_1.to_string(index=False), inline=True)
+        embedVar.add_field(name="Total Profit", value=item_price_page_1.to_string(index=False), inline=True)
+        embedVar.add_field(name="Price Paid", value=Bought_items.to_string(index=False), inline=True)
+        embedVar.add_field(name="Total Profit", value=sum(Total_sold), inline=True)
+        embedVar.add_field(name="Price Paid", value=sum(Total_bought), inline=True)
+        await interaction2.send(embed=embedVar)
+    else:
+      list4 = list2.copy()
+      list5 = list3.copy()
+      nosale_next_page = nosale.copy()
+      list4 = list4[10:30]
+      list5 = list5[10:30]
+      nosale_next_page = nosale_next_page[10:30]
+      Sales_page_1 = pd.DataFrame ({' ': list4})
+      item_price_page_1 = pd.DataFrame ({'  ': list5})
+      Bought_items = pd.DataFrame ({'   ': nosale_next_page})
+      embedVar = discord.Embed(title='Critter Marketplace Tracker',
+      description=f'Page 2 of {str(Number_of_pages)}',
+      color=0x00ff00)
+      embedVar.add_field(name="Sales",value=Sales_page_1.to_string(index=False), inline=True)
+      embedVar.add_field(name="Total Profit", value=item_price_page_1.to_string(index=False), inline=True)
+      embedVar.add_field(name="Price Paid", value=Bought_items.to_string(index=False), inline=True)
+      embedVar.add_field(name="Total Profit", value=sum(Total_sold), inline=True)
+      embedVar.add_field(name="Price Paid", value=sum(Total_bought), inline=True)
+      await interaction.send(
+          embed=embedVar)
+      
+  except requests.exceptions.RequestException as e:
+    embedVar = discord.Embed(title="CritterzC Marketplace tracker",description="ERROR!", color=0xFF0000)
+    embedVar.add_field(name="Username or wallet is incorrect", value="Bedrock usernames are not supported (because of different UUID's), please use wallet address", inline=True)
+    await ctx.send(embed=embedVar)
+    
+@bot.command()
+#dropdown menus are resetly added so if somone has not updated their discord client, they can use the command block_error. Same as !block, but using arguments.
+async def block_error(ctx, arg, arg2, arg3):
+  if int(arg3) < 24:
+    embedVar = discord.Embed(title="Critterz $BLOCK calculator, based on SpaceFrog's Math.", description="This should be your earnings for: \n" + arg + " Critterz Owned\n" + arg2 + " Critterz Rented\n" + arg3 + " Hours of playtime", color=0x00ff00, url="https://docs.google.com/spreadsheets/d/1F4CFj_jRRVnnwL-y0E6sINEPkUZESd1nkhBR29AHSkI/edit#gid=0")
+    r = requests.get('https://api.dexscreener.io/latest/dex/pairs/ethereum/0xe93527d1f8c586353b13826c501fa5a69bce2b0e')
+    Price_block = r.json()
+    Price_block = Price_block['pair']['priceUsd']
+    Price_block_int = float(Price_block)
+    arg = int(arg)
+    arg2 = int(arg2)
+    arg3 = int(arg3)
+    calc = (24*arg)+(100*math.sqrt((arg+arg2)*arg3))-(arg2/(arg+arg2))*(100*math.sqrt((arg+arg2)*arg3))*(0.4)
+    print(float(Price_block))
+    Block_per_day = Price_block_int * calc
+    Round_block_per_day = round(Block_per_day,2)
+    embedVar.add_field(name="Earnings ", value=calc, inline=False)
+    embedVar.add_field(name="Profit per day", value=str(round(Block_per_day,2)) + "$",inline=False)
+    embedVar.set_footer(text="This is based on SpaceFrog's google sheet, for more info click the hyperlink above (in the title)")
+    await ctx.send(embed=embedVar)
+  else:
+    embedVar = discord.Embed(title="Error!", description="There are only 24 hours in a day, not " + arg3 + " you dummy.", color=0xFF0000)
+    await ctx.send(embed=embedVar)
+@bot.command(aliases=["helpblock"])
+#more info about the block command, but is outdated.
+async def blockhelp(ctx):
+  embedVar = discord.Embed(title="Critterz $BLOCK calculator, based on SpaceFrog's Math.", description="", color=0x00ff00, url="https://docs.google.com/spreadsheets/d/1F4CFj_jRRVnnwL-y0E6sINEPkUZESd1nkhBR29AHSkI/edit#gid=0")
+  embedVar.add_field(name="Command Help", value="Calculate your earning do: \n **!blocks [Critterz you own][Critterz you rent][hours you play]**")
+  embedVar.add_field(name="Example", value="If I'm renting 3 critterz and playing 4 hours, I do: **!blocks 0 3 4**")
+  await ctx.send(embed=embedVar)
+@bot.command()
+#work in progress on ingame block burning, will not be 100% accurate for future features since there is no specified actions linked the requests
+async def tpburn(ctx):
+  total_burn = []
+  null = "null"
+  url = "https://hasura-dxhfx4osrq-ue.a.run.app/v1/graphql"
+  Va = {"operationName":"Off_chain_transaction","variables": { "where": { "transaction_type": { "_eq": "6" } }},"query":"query Off_chain_transaction($distinctOn: [off_chain_transaction_select_column!], $where: off_chain_transaction_bool_exp) { off_chain_transaction(distinct_on: $distinctOn, where: $where) { amount timestamp to transaction_type nonce id from active } }"}
+  r = requests.post(url, json=Va)
+  r = r.json()
+  print(r)
+  burn_clean = json.dumps(r, indent=2)
+  list = json.loads(burn_clean)
+  for price in list['data']['off_chain_transaction']:
+    price_total = price['amount']/1000000000
+    total_burn.append(price_total)
+  await ctx.send(sum(total_burn))
+@playtimeall.error
+async def secretguilddata_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send('This is for the CritterzC Managers or above only.')
+never_sleep.awake('https://CritterzC-Discord.sammiedelbammie.repl.co', False) # for unlimited replit runtime.
+while True:
+  bot.run(my_secret)
+  
